@@ -1,4 +1,4 @@
-// UI y estado de Lanzor Mobility. No hace fetch ni cálculo de precio directo:
+// UI y estado del cotizador. No hace fetch ni cálculo de precio directo:
 // delega en Maps, Calculator, Storage, Clients, Quotes, Services, WhatsApp y
 // Dashboard. Este archivo solo orquesta pantallas y DOM.
 (function () {
@@ -123,6 +123,7 @@
     generarBtn: document.getElementById('generarBtn'),
     editarBtn: document.getElementById('editarBtn'),
 
+    docCard: document.getElementById('docCard'),
     docEmpresaNombre: document.getElementById('docEmpresaNombre'),
     docNumero: document.getElementById('docNumero'),
     docFecha: document.getElementById('docFecha'),
@@ -139,6 +140,7 @@
     docContacto: document.getElementById('docContacto'),
     docEstadoChip: document.getElementById('docEstadoChip'),
     whatsappBtn: document.getElementById('whatsappBtn'),
+    whatsappBtnLabel: document.getElementById('whatsappBtnLabel'),
     pdfBtn: document.getElementById('pdfBtn'),
     estadoToggle: document.getElementById('estadoToggle'),
     marcarAceptadoBtn: document.getElementById('marcarAceptadoBtn'),
@@ -191,7 +193,9 @@
     dMesKm: document.getElementById('dMesKm'),
     dMesClientes: document.getElementById('dMesClientes'),
     dMesTicket: document.getElementById('dMesTicket'),
+    dMesConversion: document.getElementById('dMesConversion'),
     chartIngresos: document.getElementById('chartIngresos'),
+    chartEstados: document.getElementById('chartEstados'),
     chartVehiculo: document.getElementById('chartVehiculo'),
     chartClientes: document.getElementById('chartClientes'),
 
@@ -317,18 +321,33 @@
     if (clientes.some(function (c) { return c.id === current; })) els.clienteSelect.value = current;
   }
 
+  function aplicarClienteAlFormulario(c) {
+    els.cliente.value = c.nombre;
+    if (c.direccionHabitual) els.origen.value = c.direccionHabitual;
+    if (c.tarifaPersonalizada && c.tarifaPersonalizada.activa && c.tarifaPersonalizada.precioKm) {
+      els.precioKm.value = c.tarifaPersonalizada.precioKm;
+    }
+  }
+
   els.clienteSelect.addEventListener('change', function () {
     var id = els.clienteSelect.value;
     state.clienteSeleccionadoId = id || null;
     if (!id) return;
     var c = Clients.obtener(id);
     if (!c) return;
-    els.cliente.value = c.nombre;
-    if (c.direccionHabitual) els.origen.value = c.direccionHabitual;
-    if (c.tarifaPersonalizada && c.tarifaPersonalizada.activa && c.tarifaPersonalizada.precioKm) {
-      els.precioKm.value = c.tarifaPersonalizada.precioKm;
-    }
+    aplicarClienteAlFormulario(c);
   });
+
+  // Arranca una cotización nueva ya con los datos de este cliente cargados.
+  function cotizarParaCliente(id) {
+    var c = Clients.obtener(id);
+    if (!c) return;
+    resetForm();
+    state.clienteSeleccionadoId = id;
+    els.clienteSelect.value = id;
+    aplicarClienteAlFormulario(c);
+    showScreen('form');
+  }
 
   // --- Paradas ---
 
@@ -623,7 +642,7 @@
   }
 
   function fillPresupuestoScreen(q) {
-    els.docEmpresaNombre.textContent = settings.empresa.nombre || 'Lanzor Mobility';
+    els.docEmpresaNombre.textContent = settings.empresa.nombre || 'Tu Empresa';
     els.docNumero.textContent = q.numero;
     els.docFecha.textContent = fmtFecha(q.fecha);
     els.docVigencia.textContent = fmtFecha(q.vigenciaHasta);
@@ -702,12 +721,68 @@
     showScreen('form');
   }
 
+  // Genera un PNG del presupuesto (mismo diseño en pantalla) y lo comparte.
+  // Si el navegador soporta compartir archivos (Web Share API, típico en
+  // celulares) el usuario elige WhatsApp desde el selector nativo con la
+  // imagen ya adjunta. Si no (la mayoría de los navegadores de escritorio),
+  // descarga el PNG y abre WhatsApp con el texto para pegarla a mano.
+  function generarImagenPresupuesto() {
+    if (typeof html2canvas === 'undefined') return Promise.reject(new Error('sin_html2canvas'));
+    return html2canvas(els.docCard, { backgroundColor: '#ffffff', scale: 2 }).then(function (canvas) {
+      return new Promise(function (resolve, reject) {
+        canvas.toBlob(function (blob) {
+          if (blob) resolve(blob); else reject(new Error('toBlob_failed'));
+        }, 'image/png');
+      });
+    });
+  }
+
+  function descargarYAbrirWhatsapp(blob, q, telefono, texto) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = q.numero + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    window.open(WhatsApp.link(telefono, texto), '_blank');
+  }
+
+  var compartiendo = false;
   els.whatsappBtn.addEventListener('click', function () {
+    if (compartiendo) return;
     var q = state.currentQuote;
     if (!q) return;
+
     var cliente = q.clienteId ? Clients.obtener(q.clienteId) : null;
     var telefono = cliente ? (cliente.whatsapp || cliente.telefono) : '';
-    window.open(WhatsApp.link(telefono, WhatsApp.mensaje(q, settings.empresa)), '_blank');
+    var texto = WhatsApp.mensaje(q, settings.empresa);
+
+    compartiendo = true;
+    els.whatsappBtn.disabled = true;
+    els.whatsappBtnLabel.textContent = 'Generando imagen...';
+
+    generarImagenPresupuesto().then(function (blob) {
+      var archivo;
+      try { archivo = new File([blob], q.numero + '.png', { type: 'image/png' }); } catch (e) { archivo = null; }
+
+      if (archivo && navigator.canShare && navigator.canShare({ files: [archivo] })) {
+        return navigator.share({ files: [archivo], text: texto, title: 'Presupuesto ' + q.numero })
+          .catch(function (err) {
+            if (err && err.name === 'AbortError') return;
+            descargarYAbrirWhatsapp(blob, q, telefono, texto);
+          });
+      }
+      descargarYAbrirWhatsapp(blob, q, telefono, texto);
+    }).catch(function () {
+      // Si falla la generación de la imagen, no dejamos al usuario sin salida.
+      window.open(WhatsApp.link(telefono, texto), '_blank');
+    }).finally(function () {
+      compartiendo = false;
+      els.whatsappBtn.disabled = false;
+      els.whatsappBtnLabel.textContent = 'Compartir por WhatsApp';
+    });
   });
 
   els.pdfBtn.addEventListener('click', function () { window.print(); });
@@ -781,6 +856,12 @@
       var actions = document.createElement('div');
       actions.className = 'client-actions';
 
+      var cotizarBtn = document.createElement('button');
+      cotizarBtn.type = 'button';
+      cotizarBtn.className = 'icon-btn primary';
+      cotizarBtn.textContent = 'Cotizar';
+      cotizarBtn.addEventListener('click', function () { cotizarParaCliente(c.id); });
+
       var editBtn = document.createElement('button');
       editBtn.type = 'button';
       editBtn.className = 'icon-btn';
@@ -799,6 +880,7 @@
         populateClienteSelect();
       });
 
+      actions.appendChild(cotizarBtn);
       actions.appendChild(editBtn);
       actions.appendChild(delBtn);
 
@@ -1027,10 +1109,20 @@
     els.dMesKm.textContent = mes.kilometros + ' km';
     els.dMesClientes.textContent = mes.clientes;
     els.dMesTicket.textContent = '$ ' + fmtMoney(mes.ticketPromedio);
+    els.dMesConversion.textContent = Dashboard.tasaConversion().tasa + '%';
 
     renderBarChart(els.chartIngresos, Dashboard.ingresosPorDia(7));
+    renderEstadosChart(els.chartEstados, Dashboard.presupuestosPorEstado());
     renderVehiculoChart(els.chartVehiculo, Dashboard.motoVsAuto());
     renderTopClientes(els.chartClientes, Dashboard.principalesClientes(5));
+  }
+
+  function renderEstadosChart(container, lista) {
+    var total = lista.reduce(function (acc, e) { return acc + e.count; }, 0);
+    if (!total) { container.innerHTML = '<div class="empty-chart">Sin presupuestos este mes.</div>'; return; }
+    container.innerHTML = lista.filter(function (e) { return e.count > 0; }).map(function (e) {
+      return '<div class="top-client-row"><span><span class="badge-estado ' + e.estado + '">' + (ESTADO_QUOTE_LABELS[e.estado] || e.estado) + '</span></span><span>' + e.count + '</span></div>';
+    }).join('');
   }
 
   // --- Configuración ---
@@ -1129,7 +1221,7 @@
     els.sfEstado.appendChild(opt);
   });
 
-  els.headerTitle.textContent = settings.empresa.nombre || 'Lanzor Mobility';
+  els.headerTitle.textContent = settings.empresa.nombre || 'Tu Empresa';
   populateClienteSelect();
   renderRecargosCheckboxes();
   setDescuentoTipo('');

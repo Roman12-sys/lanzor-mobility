@@ -37,7 +37,7 @@
       version: 2,
       ultimoPrecioKm: null,
       empresa: {
-        nombre: 'Lanzor Mobility',
+        nombre: '',
         logo: '',
         telefono: '',
         whatsapp: '',

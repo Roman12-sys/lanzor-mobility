@@ -14,7 +14,7 @@
     var lineas = [];
     lineas.push('Hola ' + quote.cliente + ' 👋');
     lineas.push('');
-    lineas.push('Te compartimos el presupuesto de ' + (empresa && empresa.nombre ? empresa.nombre : 'Lanzor Mobility') + '.');
+    lineas.push('Te compartimos el presupuesto de ' + (empresa && empresa.nombre ? empresa.nombre : 'Tu Empresa') + '.');
     lineas.push('');
     lineas.push('📍 Retiro: ' + quote.origen);
     (quote.paradas || []).forEach(function (p, i) {
@@ -31,10 +31,16 @@
     return lineas.join('\n');
   }
 
+  // En desktop, wa.me hace una redirección extra antes de llegar a WhatsApp
+  // Web que a veces se queda "colgada" (interstitial, cookies de terceros).
+  // Yendo directo a web.whatsapp.com/send nos salteamos ese salto.
   function link(telefono, texto) {
     var digits = String(telefono || '').replace(/\D/g, '');
-    var base = digits ? 'https://wa.me/' + digits : 'https://api.whatsapp.com/send';
-    return base + '?text=' + encodeURIComponent(texto);
+    var esMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if (esMobile) {
+      return (digits ? 'https://wa.me/' + digits : 'https://wa.me/') + '?text=' + encodeURIComponent(texto);
+    }
+    return 'https://web.whatsapp.com/send?' + (digits ? 'phone=' + digits + '&' : '') + 'text=' + encodeURIComponent(texto);
   }
 
   global.WhatsApp = {

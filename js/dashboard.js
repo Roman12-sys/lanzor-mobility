@@ -12,6 +12,13 @@
     return f.getFullYear() === ref.getFullYear() && f.getMonth() === ref.getMonth();
   }
 
+  // Presupuestos guardan fecha como ISO completo (con hora), a diferencia de
+  // los servicios que usan solo 'AAAA-MM-DD'.
+  function esDelMesISO(iso, ref) {
+    var f = new Date(iso);
+    return f.getFullYear() === ref.getFullYear() && f.getMonth() === ref.getMonth();
+  }
+
   function resumenHoy() {
     var hoy = hoyStr();
     var services = global.Storage.getServices();
@@ -85,11 +92,34 @@
       .slice(0, limite);
   }
 
+  function tasaConversion() {
+    var ref = new Date();
+    var quotes = global.Quotes.listar({}).filter(function (q) { return esDelMesISO(q.fecha, ref); });
+    var aceptados = quotes.filter(function (q) { return q.estado === 'aceptado'; }).length;
+    return {
+      generados: quotes.length,
+      aceptados: aceptados,
+      tasa: quotes.length ? Math.round((aceptados / quotes.length) * 100) : 0
+    };
+  }
+
+  function presupuestosPorEstado() {
+    var ref = new Date();
+    var estados = ['pendiente', 'aceptado', 'rechazado', 'vencido', 'cancelado'];
+    var counts = {};
+    estados.forEach(function (e) { counts[e] = 0; });
+    global.Quotes.listar({}).filter(function (q) { return esDelMesISO(q.fecha, ref); })
+      .forEach(function (q) { if (counts[q.estado] != null) counts[q.estado]++; });
+    return estados.map(function (e) { return { estado: e, count: counts[e] }; });
+  }
+
   global.Dashboard = {
     resumenHoy: resumenHoy,
     resumenMes: resumenMes,
     ingresosPorDia: ingresosPorDia,
     motoVsAuto: motoVsAuto,
-    principalesClientes: principalesClientes
+    principalesClientes: principalesClientes,
+    tasaConversion: tasaConversion,
+    presupuestosPorEstado: presupuestosPorEstado
   };
 })(window);

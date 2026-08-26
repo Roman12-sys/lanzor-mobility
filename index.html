@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lanzor Mobility</title>
+<title>Cotizador de Entregas</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -18,7 +19,7 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
     <div>
-      <div class="header-title" id="headerTitle">Lanzor Mobility</div>
+      <div class="header-title" id="headerTitle">Tu Empresa</div>
       <div class="header-sub" id="headerSub">Sistema de cotización y gestión logística</div>
     </div>
   </div>
@@ -208,7 +209,7 @@
     <section id="screen-presupuesto" hidden>
       <div class="doc-card" id="docCard">
         <div>
-          <div class="doc-brand" id="docEmpresaNombre">Lanzor Mobility</div>
+          <div class="doc-brand" id="docEmpresaNombre">Tu Empresa</div>
           <div class="doc-number">Presupuesto <span id="docNumero"></span></div>
           <div class="doc-meta-row">
             <span>Fecha: <span id="docFecha"></span></span>
@@ -273,7 +274,7 @@
       <div class="chip no-print" id="docEstadoChip" style="align-self:flex-start;"></div>
 
       <button type="button" class="btn-primary no-print" id="whatsappBtn" style="background:#25D366;">
-        Enviar por WhatsApp
+        <span id="whatsappBtnLabel">Compartir por WhatsApp</span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       </button>
       <button type="button" class="btn-ghost no-print" id="pdfBtn">Descargar PDF</button>
@@ -386,17 +387,21 @@
     <!-- ===== SERVICIOS ===== -->
 
     <section id="screen-servicios-list" hidden>
-      <div class="filters-row" id="serviciosFiltros">
-        <button type="button" class="nav-pill active" data-estado="">Todos</button>
-        <button type="button" class="nav-pill" data-estado="pendiente">Pendiente</button>
-        <button type="button" class="nav-pill" data-estado="programado">Programado</button>
-        <button type="button" class="nav-pill" data-estado="en_preparacion">En prep.</button>
-        <button type="button" class="nav-pill" data-estado="en_viaje">En viaje</button>
-        <button type="button" class="nav-pill" data-estado="entregado">Entregado</button>
-        <button type="button" class="nav-pill" data-estado="cancelado">Cancelado</button>
+      <div class="sidebar-layout">
+        <div class="sidebar-filters" id="serviciosFiltros">
+          <button type="button" class="nav-pill active" data-estado="">Todos</button>
+          <button type="button" class="nav-pill" data-estado="pendiente">Pendiente</button>
+          <button type="button" class="nav-pill" data-estado="programado">Programado</button>
+          <button type="button" class="nav-pill" data-estado="en_preparacion">En prep.</button>
+          <button type="button" class="nav-pill" data-estado="en_viaje">En viaje</button>
+          <button type="button" class="nav-pill" data-estado="entregado">Entregado</button>
+          <button type="button" class="nav-pill" data-estado="cancelado">Cancelado</button>
+        </div>
+        <div class="sidebar-content">
+          <div class="hint" id="serviciosEmpty" hidden>Todavía no hay servicios. Se crean desde un presupuesto aceptado.</div>
+          <div class="record-list" id="serviciosList"></div>
+        </div>
       </div>
-      <div class="hint" id="serviciosEmpty" hidden>Todavía no hay servicios. Se crean desde un presupuesto aceptado.</div>
-      <div class="record-list" id="serviciosList"></div>
     </section>
 
     <section id="screen-servicio-form" hidden>
@@ -442,11 +447,19 @@
         <div class="stat-tile"><div class="label-sm">Kilómetros</div><div class="stat-value" id="dMesKm"></div></div>
         <div class="stat-tile"><div class="label-sm">Clientes</div><div class="stat-value" id="dMesClientes"></div></div>
       </div>
-      <div class="stat-tile"><div class="label-sm">Ticket promedio</div><div class="stat-value" id="dMesTicket"></div></div>
+      <div class="stat-grid">
+        <div class="stat-tile"><div class="label-sm">Ticket promedio</div><div class="stat-value" id="dMesTicket"></div></div>
+        <div class="stat-tile"><div class="label-sm">Tasa de conversión</div><div class="stat-value" id="dMesConversion"></div></div>
+      </div>
 
       <div class="chart-card">
         <div class="section-title" style="margin:0;">Ingresos por día</div>
         <div id="chartIngresos"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="section-title" style="margin:0;">Presupuestos por estado (este mes)</div>
+        <div id="chartEstados"></div>
       </div>
 
       <div class="chart-card">
