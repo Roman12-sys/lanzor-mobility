@@ -147,6 +147,10 @@
     marcarRechazadoBtn: document.getElementById('marcarRechazadoBtn'),
     convertirServicioBtn: document.getElementById('convertirServicioBtn'),
     nuevaBtn: document.getElementById('nuevaBtn'),
+    imagenOverlay: document.getElementById('imagenOverlay'),
+    imagenOverlayImg: document.getElementById('imagenOverlayImg'),
+    cerrarImagenOverlay: document.getElementById('cerrarImagenOverlay'),
+    imagenOverlayWhatsapp: document.getElementById('imagenOverlayWhatsapp'),
 
     clientesBuscar: document.getElementById('clientesBuscar'),
     nuevoClienteBtn: document.getElementById('nuevoClienteBtn'),
@@ -721,11 +725,9 @@
     showScreen('form');
   }
 
-  // Genera un PNG del presupuesto (mismo diseño en pantalla) y lo comparte.
-  // Si el navegador soporta compartir archivos (Web Share API, típico en
-  // celulares) el usuario elige WhatsApp desde el selector nativo con la
-  // imagen ya adjunta. Si no (la mayoría de los navegadores de escritorio),
-  // descarga el PNG y abre WhatsApp con el texto para pegarla a mano.
+  // Genera un PNG del presupuesto (mismo diseño en pantalla). Primero intenta
+  // Web Share con el archivo adjunto (funciona en varios navegadores mobile);
+  // si no está disponible o falla, cae al overlay de mostrarImagenOverlay().
   function generarImagenPresupuesto() {
     if (typeof html2canvas === 'undefined') return Promise.reject(new Error('sin_html2canvas'));
     return html2canvas(els.docCard, { backgroundColor: '#ffffff', scale: 2 }).then(function (canvas) {
@@ -737,17 +739,23 @@
     });
   }
 
-  function descargarYAbrirWhatsapp(blob, q, telefono, texto) {
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = q.numero + '.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
-    window.open(WhatsApp.link(telefono, texto), '_blank');
+  // El Web Share con archivos y la descarga programática son poco confiables
+  // en varios navegadores/celulares (sobre todo dentro del navegador interno
+  // de WhatsApp). Lo que sí funciona siempre: mostrar la imagen y que el
+  // usuario la guarde o comparta con su propio gesto de mantener presionado.
+  var overlayUrl = null;
+  function mostrarImagenOverlay(blob, telefono, texto) {
+    if (overlayUrl) URL.revokeObjectURL(overlayUrl);
+    overlayUrl = URL.createObjectURL(blob);
+    els.imagenOverlayImg.src = overlayUrl;
+    els.imagenOverlayWhatsapp.href = WhatsApp.link(telefono, texto);
+    els.imagenOverlay.hidden = false;
   }
+  function cerrarImagenOverlay() {
+    els.imagenOverlay.hidden = true;
+    if (overlayUrl) { URL.revokeObjectURL(overlayUrl); overlayUrl = null; }
+  }
+  els.cerrarImagenOverlay.addEventListener('click', cerrarImagenOverlay);
 
   var compartiendo = false;
   els.whatsappBtn.addEventListener('click', function () {
@@ -771,10 +779,10 @@
         return navigator.share({ files: [archivo], text: texto, title: 'Presupuesto ' + q.numero })
           .catch(function (err) {
             if (err && err.name === 'AbortError') return;
-            descargarYAbrirWhatsapp(blob, q, telefono, texto);
+            mostrarImagenOverlay(blob, telefono, texto);
           });
       }
-      descargarYAbrirWhatsapp(blob, q, telefono, texto);
+      mostrarImagenOverlay(blob, telefono, texto);
     }).catch(function () {
       // Si falla la generación de la imagen, no dejamos al usuario sin salida.
       window.open(WhatsApp.link(telefono, texto), '_blank');

@@ -185,6 +185,15 @@ section[hidden] { display: none; }
 .doc-conditions { font-size: 12px; color: var(--ink-muted); line-height: 1.55; }
 .doc-contact { font-size: 12.5px; color: var(--ink-muted); }
 
+/* Overlay para guardar/compartir la imagen del presupuesto: funciona en
+   cualquier navegador porque usa el gesto nativo de mantener presionado
+   sobre la imagen, en vez de depender de Web Share/descarga programática. */
+.image-overlay { position: fixed; inset: 0; background: rgba(15, 18, 26, .92); z-index: 50; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px; overflow-y: auto; }
+.image-overlay-bar { width: 100%; max-width: 480px; display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #fff; font-size: 13px; }
+.image-overlay-bar button { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(255, 255, 255, .18); color: #fff; font-size: 15px; display: flex; align-items: center; justify-content: center; padding: 0; }
+.image-overlay img { max-width: 100%; width: 100%; max-width: 480px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .4); }
+.image-overlay .btn-primary { max-width: 480px; }
+
 @media print {
   /* Margen 0 en @page evita que el navegador imprima su propio encabezado/pie
      (URL, título, fecha) - por eso el padding se repone en el propio bloque. */
