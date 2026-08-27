@@ -39,6 +39,15 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  // Evita reconstruir toda la lista en cada tecla escrita en un buscador.
+  function debounce(fn, esperaMs) {
+    var timer = null;
+    return function () {
+      var args = arguments;
+      clearTimeout(timer);
+      timer = setTimeout(function () { fn.apply(null, args); }, esperaMs);
+    };
+  }
   function attachConfirmDelete(btn, onConfirm) {
     var original = btn.innerHTML;
     var timer = null;
@@ -139,6 +148,7 @@
     docCondiciones: document.getElementById('docCondiciones'),
     docContacto: document.getElementById('docContacto'),
     docEstadoChip: document.getElementById('docEstadoChip'),
+    docHistorial: document.getElementById('docHistorial'),
     whatsappBtn: document.getElementById('whatsappBtn'),
     whatsappBtnLabel: document.getElementById('whatsappBtnLabel'),
     pdfBtn: document.getElementById('pdfBtn'),
@@ -666,6 +676,10 @@
     els.docEstadoChip.innerHTML = '<span class="badge-estado ' + q.estado + '">' + (ESTADO_QUOTE_LABELS[q.estado] || q.estado) + '</span>';
     els.convertirServicioBtn.hidden = q.estado !== 'aceptado';
     els.estadoToggle.hidden = q.estado !== 'pendiente';
+
+    els.docHistorial.textContent = (q.historial || []).map(function (h) {
+      return (ESTADO_QUOTE_LABELS[h.estado] || h.estado) + ' (' + new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) + ')';
+    }).join(' → ');
   }
 
   function fillPresupuestoScreen(q) {
@@ -925,7 +939,7 @@
       els.clientesList.appendChild(card);
     });
   }
-  els.clientesBuscar.addEventListener('input', renderClientesList);
+  els.clientesBuscar.addEventListener('input', debounce(renderClientesList, 200));
 
   function setTipoForm(v) {
     state.clienteTipoForm = v;
@@ -1013,7 +1027,7 @@
       els.presupuestosList.appendChild(card);
     });
   }
-  els.presupuestosBuscar.addEventListener('input', renderPresupuestosList);
+  els.presupuestosBuscar.addEventListener('input', debounce(renderPresupuestosList, 200));
   els.presupuestosFiltros.addEventListener('click', function (e) {
     var btn = e.target.closest('.nav-pill');
     if (!btn) return;

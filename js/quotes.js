@@ -27,13 +27,21 @@
     return fecha.toISOString();
   }
 
+  // Historial de estados: se agrega, nunca se pisa. Sirve para responder
+  // "¿cuándo se aceptó/rechazó esto?" sin tener que adivinarlo.
+  function registrarHistorial(quote, estado) {
+    var historial = (quote.historial || []).slice();
+    historial.push({ estado: estado, fecha: new Date().toISOString() });
+    return historial;
+  }
+
   // Marca como vencido cualquier pendiente cuya vigencia ya pasó.
   function aplicarVencimientos() {
     var quotes = global.Storage.getQuotes();
     var ahora = Date.now();
     quotes.forEach(function (q) {
       if (q.estado === 'pendiente' && q.vigenciaHasta && new Date(q.vigenciaHasta).getTime() < ahora) {
-        global.Storage.updateQuote(q.id, { estado: 'vencido' });
+        global.Storage.updateQuote(q.id, { estado: 'vencido', historial: registrarHistorial(q, 'vencido') });
       }
     });
   }
@@ -44,7 +52,8 @@
       numero: siguienteNumero(),
       fecha: ahora,
       vigenciaHasta: vigenciaHasta(ahora),
-      estado: 'pendiente'
+      estado: 'pendiente',
+      historial: [{ estado: 'pendiente', fecha: ahora }]
     });
     return global.Storage.saveQuote(quote);
   }
@@ -71,12 +80,18 @@
   }
 
   function actualizar(id, patch) {
+    var actual = obtener(id);
+    if (actual && patch.estado && patch.estado !== actual.estado) {
+      patch = Object.assign({}, patch, { historial: registrarHistorial(actual, patch.estado) });
+    }
     return global.Storage.updateQuote(id, patch);
   }
 
   function cambiarEstado(id, estado) {
     if (ESTADOS.indexOf(estado) === -1) return null;
-    return global.Storage.updateQuote(id, { estado: estado });
+    var actual = obtener(id);
+    if (!actual) return null;
+    return global.Storage.updateQuote(id, { estado: estado, historial: registrarHistorial(actual, estado) });
   }
 
   function duplicar(id) {
@@ -88,7 +103,8 @@
       numero: siguienteNumero(),
       fecha: ahora,
       vigenciaHasta: vigenciaHasta(ahora),
-      estado: 'pendiente'
+      estado: 'pendiente',
+      historial: [{ estado: 'pendiente', fecha: ahora }]
     });
     return global.Storage.saveQuote(copia);
   }

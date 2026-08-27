@@ -5,6 +5,13 @@
 
   var ESTADOS = ['pendiente', 'programado', 'en_preparacion', 'en_viaje', 'entregado', 'cancelado'];
 
+  // Historial de estados: se agrega, nunca se pisa.
+  function registrarHistorial(service, estado) {
+    var historial = (service.historial || []).slice();
+    historial.push({ estado: estado, fecha: new Date().toISOString() });
+    return historial;
+  }
+
   function crearDesdeQuote(quote, extra) {
     extra = extra || {};
     var ahora = new Date();
@@ -22,7 +29,8 @@
       destino: quote.destino,
       distanciaKm: quote.distanciaKm,
       total: quote.total,
-      estado: 'pendiente'
+      estado: 'pendiente',
+      historial: [{ estado: 'pendiente', fecha: ahora.toISOString() }]
     };
     return global.Storage.saveService(service);
   }
@@ -43,12 +51,18 @@
   }
 
   function actualizar(id, patch) {
+    var actual = obtener(id);
+    if (actual && patch.estado && patch.estado !== actual.estado) {
+      patch = Object.assign({}, patch, { historial: registrarHistorial(actual, patch.estado) });
+    }
     return global.Storage.updateService(id, patch);
   }
 
   function cambiarEstado(id, estado) {
     if (ESTADOS.indexOf(estado) === -1) return null;
-    return global.Storage.updateService(id, { estado: estado });
+    var actual = obtener(id);
+    if (!actual) return null;
+    return global.Storage.updateService(id, { estado: estado, historial: registrarHistorial(actual, estado) });
   }
 
   function eliminar(id) {
