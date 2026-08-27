@@ -470,9 +470,16 @@
     showScreen('loading');
 
     var direcciones = [origen].concat(paradas, [destino]);
+    var etiquetasCampo = ['Retiro'].concat(paradas.map(function (_, i) { return 'Parada ' + (i + 1); }), ['Entrega']);
+    var promesas = direcciones.map(function (dir, i) {
+      return Maps.resolverUbicacion(dir).catch(function (err) {
+        err.campo = etiquetasCampo[i];
+        throw err;
+      });
+    });
 
-    Promise.all(direcciones.map(Maps.geocode)).then(function (puntos) {
-      return Maps.routeDistanceKm(puntos).then(function (km) {
+    Promise.all(promesas).then(function (ubicaciones) {
+      return Maps.routeDistanceKm(ubicaciones).then(function (km) {
         var kmRounded = Math.round(km * 10) / 10;
         var cotizacion = Calculator.calcularCotizacion({
           vehiculo: state.vehiculo,
@@ -482,15 +489,21 @@
           recargos: getRecargosSeleccionados(),
           descuento: getDescuento()
         });
+        var ubOrigen = ubicaciones[0];
+        var ubParadas = ubicaciones.slice(1, -1);
+        var ubDestino = ubicaciones[ubicaciones.length - 1];
         state.result = {
           cliente: cliente, vehiculo: state.vehiculo,
-          origen: origen, paradas: paradas, destino: destino,
+          origen: etiquetaDeUbicacion(ubOrigen),
+          paradas: ubParadas.map(etiquetaDeUbicacion),
+          destino: etiquetaDeUbicacion(ubDestino),
+          ubicaciones: { origen: ubOrigen, paradas: ubParadas, destino: ubDestino },
           precioKm: precioKm, distanciaKm: kmRounded,
           cotizacion: cotizacion, total: cotizacion.total,
           clienteId: state.clienteSeleccionadoId,
           notasInternas: els.notasInternas.value.trim(),
           observacionesCliente: els.observacionesCliente.value.trim(),
-          fecha: new Date(), puntos: puntos
+          fecha: new Date(), puntos: ubicaciones
         };
         if (precioKm > 0) {
           settings.ultimoPrecioKm = precioKm;
@@ -502,8 +515,13 @@
     }).catch(function (err) {
       var msg = 'No se pudo calcular la distancia. Revisá la conexión e intentá de nuevo.';
       var m = String(err && err.message || '');
-      if (m.indexOf('not_found:') === 0) {
-        msg = 'No se encontró la dirección: "' + m.slice(10) + '". Probá agregando altura y localidad.';
+      var prefijo = err && err.campo ? '(' + err.campo + ') ' : '';
+      if (m === 'link_corto') {
+        msg = prefijo + 'Ese es un link corto de Google Maps (goo.gl/maps o maps.app.goo.gl) y no se puede leer directo. Abrilo una vez y pegá acá la URL completa que te queda en la barra de direcciones (la que tiene @-34...,-58... en el medio).';
+      } else if (m === 'timeout') {
+        msg = prefijo + 'Tardó demasiado en responder. Revisá la conexión e intentá de nuevo.';
+      } else if (m.indexOf('not_found:') === 0) {
+        msg = prefijo + 'No se encontró la dirección: "' + m.slice(10) + '". Probá agregando altura y localidad, o pegá coordenadas (-34.6, -58.4) o un link de Google Maps.';
       }
       showScreen('form');
       showFormError(msg);
@@ -511,6 +529,10 @@
       calculando = false;
       els.calcularBtn.disabled = false;
     });
+  }
+
+  function etiquetaDeUbicacion(u) {
+    return u.fuente === 'geocodificado' ? u.texto : (u.direccionFormateada || u.texto);
   }
   els.calcularBtn.addEventListener('click', calcular);
 
@@ -587,7 +609,8 @@
       total: r.total,
       notasInternas: r.notasInternas,
       observacionesCliente: r.observacionesCliente,
-      puntos: r.puntos
+      puntos: r.puntos,
+      ubicaciones: r.ubicaciones
     };
     var quote;
     if (state.editingQuoteId) {
@@ -710,9 +733,14 @@
     setVehiculo(q.vehiculo);
     els.clienteSelect.value = q.clienteId || '';
     els.cliente.value = q.cliente;
-    els.origen.value = q.origen;
-    setParadas(q.paradas);
-    els.destino.value = q.destino;
+    // Repone el texto ORIGINAL (no la etiqueta linda que se muestra al
+    // cliente) para que al recalcular se resuelva exactamente igual que
+    // antes — coordenadas siguen siendo coordenadas, links siguen siendo
+    // links, y una dirección de toda la vida vuelve a pasar por el caché.
+    var ub = q.ubicaciones;
+    els.origen.value = ub ? ub.origen.texto : q.origen;
+    setParadas(ub ? ub.paradas.map(function (u) { return u.texto; }) : q.paradas);
+    els.destino.value = ub ? ub.destino.texto : q.destino;
     var esManual = q.cotizacion.tarifaBase === 0 && q.cotizacion.kmIncluidos === 0;
     els.precioKm.value = esManual ? q.cotizacion.precioKmAdicional : 0;
     renderRecargosCheckboxes();

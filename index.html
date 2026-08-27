@@ -6,7 +6,7 @@
 <title>Cotizador de Entregas</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" integrity="sha384-ZZ1pncU3bQe8y31yfZdMFdSpttDoPmOZg2wguVK9almUodir1PghgT0eY7Mrty8H" crossorigin="anonymous"></script>
 </head>
 <body>
 <div class="app">
@@ -66,6 +66,7 @@
       <div class="field">
         <label for="origen">Dirección de retiro</label>
         <input type="text" id="origen" placeholder="Ej: Av. Maipú 1234, Olivos">
+        <div class="hint">También podés pegar coordenadas (-34.6, -58.4) o un link de Google Maps si no tiene número.</div>
       </div>
 
       <div class="field" id="paradasField">
