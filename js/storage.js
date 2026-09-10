@@ -62,6 +62,9 @@
         vigenciaDias: 3,
         condiciones: 'Presupuesto válido por el plazo indicado. Tarifa sujeta a confirmación de disponibilidad al momento de agendar.'
       },
+      whatsapp: {
+        plantilla: 'Hola {cliente}, te enviamos el presupuesto #{presupuesto} para el viaje de {origen} a {destino}. El valor es de {precio}.'
+      },
       numeracion: { anio: null, siguiente: 1 }
     };
   }
@@ -87,6 +90,7 @@
     };
     settings.recargosDisponibles = settings.recargosDisponibles || def.recargosDisponibles;
     settings.presupuestos = Object.assign({}, def.presupuestos, settings.presupuestos || {});
+    settings.whatsapp = Object.assign({}, def.whatsapp, settings.whatsapp || {});
     settings.numeracion = Object.assign({}, def.numeracion, settings.numeracion || {});
     return migrateLegacy(settings);
   }
@@ -185,6 +189,22 @@
     writeJSON(NS + 'services', services);
   }
 
+  // ---------- Clientes recientes (solo IDs, para accesos rápidos en el cotizador) ----------
+
+  var MAX_RECIENTES = 6;
+
+  function getRecentClientIds() {
+    return readJSON(NS + 'recentClients', []);
+  }
+
+  function addRecentClientId(id) {
+    if (!id) return;
+    var lista = getRecentClientIds().filter(function (x) { return x !== id; });
+    lista.unshift(id);
+    if (lista.length > MAX_RECIENTES) lista = lista.slice(0, MAX_RECIENTES);
+    writeJSON(NS + 'recentClients', lista);
+  }
+
   global.Storage = {
     getSettings: getSettings,
     saveSettings: saveSettings,
@@ -200,6 +220,8 @@
     getServices: getServices,
     saveService: saveService,
     updateService: updateService,
-    deleteService: deleteService
+    deleteService: deleteService,
+    getRecentClientIds: getRecentClientIds,
+    addRecentClientId: addRecentClientId
   };
 })(window);

@@ -10,6 +10,28 @@
     return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
   }
 
+  // Variables de la plantilla configurable. Si un dato no está disponible
+  // se reemplaza por cadena vacía (nunca 'undefined'/'null' ni texto técnico).
+  function variablesDe(quote) {
+    return {
+      cliente: quote.cliente || '',
+      presupuesto: quote.numero || '',
+      origen: quote.origen || '',
+      destino: quote.destino || '',
+      fecha: quote.fecha ? fmtFecha(quote.fecha) : '',
+      hora: quote.fecha ? new Date(quote.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : '',
+      precio: quote.total != null ? '$ ' + fmtMoney(quote.total) : '',
+      distancia: quote.distanciaKm != null ? quote.distanciaKm + ' km' : ''
+    };
+  }
+
+  function renderPlantilla(plantilla, quote) {
+    var vars = variablesDe(quote);
+    return String(plantilla || '').replace(/\{(\w+)\}/g, function (m, key) {
+      return Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : '';
+    });
+  }
+
   function mensaje(quote, empresa) {
     var lineas = [];
     lineas.push('Hola ' + quote.cliente + ' 👋');
@@ -45,6 +67,7 @@
 
   global.WhatsApp = {
     mensaje: mensaje,
+    renderPlantilla: renderPlantilla,
     link: link
   };
 })(window);

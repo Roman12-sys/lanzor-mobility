@@ -48,6 +48,70 @@
       timer = setTimeout(function () { fn.apply(null, args); }, esperaMs);
     };
   }
+  // --- Toast de confirmación (mejora 1: guardado correctamente) ---
+  function showToast(msg, opts) {
+    opts = opts || {};
+    var toast = document.createElement('div');
+    toast.className = 'toast' + (opts.error ? ' error' : '');
+    toast.textContent = msg;
+    els.toastWrap.appendChild(toast);
+    requestAnimationFrame(function () { toast.classList.add('show'); });
+    setTimeout(function () {
+      toast.classList.remove('show');
+      setTimeout(function () { toast.remove(); }, 220);
+    }, opts.duration || 2200);
+  }
+
+  // --- Copiar al portapapeles (mejora 6) ---
+  function copiarTexto(texto, btn) {
+    texto = String(texto || '');
+    var onOk = function () {
+      showToast('✓ Copiado');
+      if (btn) {
+        var original = btn.textContent;
+        btn.classList.add('copied');
+        btn.textContent = '✓';
+        setTimeout(function () { btn.classList.remove('copied'); btn.textContent = original; }, 1500);
+      }
+    };
+    var onFail = function () { showToast('No se pudo copiar', { error: true }); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(texto).then(onOk, function () { copiarFallback(texto) ? onOk() : onFail(); });
+    } else {
+      copiarFallback(texto) ? onOk() : onFail();
+    }
+  }
+  function copiarFallback(texto) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = texto;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+  function copyBtnHtml() {
+    return '<button type="button" class="copy-btn" data-copy-action="1" aria-label="Copiar">⧉</button>';
+  }
+  // Agrega (una sola vez) un botón de copiar como hermano de `el`, que copia
+  // el texto vigente de `el` al momento del click (no el texto al armarlo).
+  function ensureCopyButton(el, ariaLabel) {
+    if (!el || !el.parentNode || el.parentNode.querySelector('.copy-btn[data-for="' + el.id + '"]')) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'copy-btn';
+    btn.setAttribute('data-for', el.id);
+    btn.setAttribute('aria-label', ariaLabel || 'Copiar');
+    btn.textContent = '⧉ Copiar';
+    btn.addEventListener('click', function () { copiarTexto(el.textContent, btn); });
+    el.parentNode.appendChild(btn);
+  }
+
   function attachConfirmDelete(btn, onConfirm) {
     var original = btn.innerHTML;
     var timer = null;
@@ -77,6 +141,12 @@
     navServicios: document.getElementById('navServicios'),
     navEstadisticas: document.getElementById('navEstadisticas'),
     navConfiguracion: document.getElementById('navConfiguracion'),
+    globalSearchBtn: document.getElementById('globalSearchBtn'),
+    globalSearchOverlay: document.getElementById('globalSearchOverlay'),
+    globalSearchInput: document.getElementById('globalSearchInput'),
+    globalSearchClose: document.getElementById('globalSearchClose'),
+    globalSearchResults: document.getElementById('globalSearchResults'),
+    toastWrap: document.getElementById('toastWrap'),
     screens: {
       form: document.getElementById('screen-form'),
       loading: document.getElementById('screen-loading'),
@@ -94,6 +164,8 @@
     btnMoto: document.getElementById('btnMoto'),
     btnAuto: document.getElementById('btnAuto'),
     clienteSelect: document.getElementById('clienteSelect'),
+    recientesRow: document.getElementById('recientesRow'),
+    recientesChips: document.getElementById('recientesChips'),
     cliente: document.getElementById('cliente'),
     origen: document.getElementById('origen'),
     paradasList: document.getElementById('paradasList'),
@@ -151,6 +223,9 @@
     docHistorial: document.getElementById('docHistorial'),
     whatsappBtn: document.getElementById('whatsappBtn'),
     whatsappBtnLabel: document.getElementById('whatsappBtnLabel'),
+    copyNumeroBtn: document.getElementById('copyNumeroBtn'),
+    copyTotalBtn: document.getElementById('copyTotalBtn'),
+    copyMensajeBtn: document.getElementById('copyMensajeBtn'),
     pdfBtn: document.getElementById('pdfBtn'),
     estadoToggle: document.getElementById('estadoToggle'),
     marcarAceptadoBtn: document.getElementById('marcarAceptadoBtn'),
@@ -163,8 +238,10 @@
     imagenOverlayWhatsapp: document.getElementById('imagenOverlayWhatsapp'),
 
     clientesBuscar: document.getElementById('clientesBuscar'),
+    clientesOrden: document.getElementById('clientesOrden'),
     nuevoClienteBtn: document.getElementById('nuevoClienteBtn'),
     clientesEmpty: document.getElementById('clientesEmpty'),
+    clientesEmptyBtn: document.getElementById('clientesEmptyBtn'),
     clientesList: document.getElementById('clientesList'),
     tipoParticular: document.getElementById('tipoParticular'),
     tipoCorporativo: document.getElementById('tipoCorporativo'),
@@ -183,10 +260,14 @@
     cancelarClienteBtn: document.getElementById('cancelarClienteBtn'),
 
     presupuestosBuscar: document.getElementById('presupuestosBuscar'),
+    presupuestosOrden: document.getElementById('presupuestosOrden'),
     presupuestosFiltros: document.getElementById('presupuestosFiltros'),
     presupuestosEmpty: document.getElementById('presupuestosEmpty'),
+    presupuestosEmptyBtn: document.getElementById('presupuestosEmptyBtn'),
     presupuestosList: document.getElementById('presupuestosList'),
 
+    serviciosBuscar: document.getElementById('serviciosBuscar'),
+    serviciosOrden: document.getElementById('serviciosOrden'),
     serviciosFiltros: document.getElementById('serviciosFiltros'),
     serviciosEmpty: document.getElementById('serviciosEmpty'),
     serviciosList: document.getElementById('serviciosList'),
@@ -226,6 +307,7 @@
     cfgAutoKmInc: document.getElementById('cfgAutoKmInc'),
     cfgAutoKmAdic: document.getElementById('cfgAutoKmAdic'),
     cfgRecargosList: document.getElementById('cfgRecargosList'),
+    cfgWhatsappPlantilla: document.getElementById('cfgWhatsappPlantilla'),
     cfgPrefijo: document.getElementById('cfgPrefijo'),
     cfgVigencia: document.getElementById('cfgVigencia'),
     cfgCondiciones: document.getElementById('cfgCondiciones'),
@@ -253,7 +335,11 @@
     presupuestoOrigen: 'flow',
     presupuestosFiltroEstado: '',
     serviciosFiltroEstado: '',
-    servicioEditandoId: null
+    servicioEditandoId: null,
+    clientesOrden: 'nombre_asc',
+    presupuestosOrden: 'recientes',
+    serviciosOrden: 'proximos',
+    clienteFichaAbiertaId: null
   };
 
   var settings = Storage.getSettings();
@@ -333,6 +419,26 @@
       els.clienteSelect.appendChild(opt);
     });
     if (clientes.some(function (c) { return c.id === current; })) els.clienteSelect.value = current;
+    renderClientesRecientes();
+  }
+
+  // --- Clientes recientes (mejora 9) ---
+  function renderClientesRecientes() {
+    var ids = Storage.getRecentClientIds();
+    var clientes = ids.map(function (id) { return Clients.obtener(id); }).filter(Boolean);
+    els.recientesChips.innerHTML = '';
+    els.recientesRow.hidden = clientes.length === 0;
+    clientes.forEach(function (c) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = c.nombre;
+      btn.addEventListener('click', function () {
+        state.clienteSeleccionadoId = c.id;
+        els.clienteSelect.value = c.id;
+        aplicarClienteAlFormulario(c);
+      });
+      els.recientesChips.appendChild(btn);
+    });
   }
 
   function aplicarClienteAlFormulario(c) {
@@ -561,6 +667,7 @@
     els.chipIcon.innerHTML = ICONS[r.vehiculo];
     els.chipText.textContent = (r.vehiculo === 'moto' ? 'Moto' : 'Auto') + ' · para ' + r.cliente;
     els.resOrigen.textContent = r.origen;
+    ensureCopyButton(els.resOrigen, 'Copiar dirección de retiro');
 
     els.resParadas.innerHTML = '';
     r.paradas.forEach(function (p, i) {
@@ -572,6 +679,7 @@
     });
 
     els.resDestino.textContent = r.destino;
+    ensureCopyButton(els.resDestino, 'Copiar dirección de entrega');
     els.resKm.textContent = r.distanciaKm + ' km';
 
     toggleRow(els.rowTarifaBase, c.tarifaBase > 0);
@@ -600,6 +708,15 @@
     els.resTotal.textContent = '$ ' + fmtMoney(c.total);
     var coords = r.puntos.map(function (p) { return p.lat + ',' + p.lon; }).join(';');
     els.mapLink.href = 'https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=' + coords;
+    if (!els.mapLink.nextElementSibling || !els.mapLink.nextElementSibling.classList.contains('copy-btn')) {
+      var mapCopyBtn = document.createElement('button');
+      mapCopyBtn.type = 'button';
+      mapCopyBtn.className = 'copy-btn';
+      mapCopyBtn.textContent = '⧉ Copiar link';
+      mapCopyBtn.setAttribute('aria-label', 'Copiar link del mapa');
+      mapCopyBtn.addEventListener('click', function () { copiarTexto(els.mapLink.href, mapCopyBtn); });
+      els.mapLink.parentNode.insertBefore(mapCopyBtn, els.mapLink.nextSibling);
+    }
   }
 
   els.generarBtn.addEventListener('click', function () {
@@ -631,8 +748,10 @@
     }
     state.currentQuote = quote;
     state.presupuestoOrigen = 'flow';
+    if (quote.clienteId) { Storage.addRecentClientId(quote.clienteId); renderClientesRecientes(); }
     fillPresupuestoScreen(quote);
     showScreen('presupuesto');
+    showToast('✓ Guardado correctamente');
   });
 
   els.editarBtn.addEventListener('click', function () { showScreen('form'); });
@@ -677,9 +796,16 @@
     els.convertirServicioBtn.hidden = q.estado !== 'aceptado';
     els.estadoToggle.hidden = q.estado !== 'pendiente';
 
-    els.docHistorial.textContent = (q.historial || []).map(function (h) {
-      return (ESTADO_QUOTE_LABELS[h.estado] || h.estado) + ' (' + new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) + ')';
-    }).join(' → ');
+    var historial = q.historial || [];
+    if (!historial.length) { els.docHistorial.innerHTML = ''; }
+    else {
+      els.docHistorial.innerHTML = '<div class="historial-list">' + historial.map(function (h, i) {
+        var evento = i === 0 ? 'Presupuesto creado' : 'Estado cambiado a ' + (ESTADO_QUOTE_LABELS[h.estado] || h.estado);
+        var fecha = new Date(h.fecha).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) + ' ' +
+          new Date(h.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+        return '<div class="historial-item"><span class="historial-fecha">' + escapeHtml(fecha) + '</span><span>' + escapeHtml(evento) + '</span></div>';
+      }).join('') + '</div>';
+    }
   }
 
   function fillPresupuestoScreen(q) {
@@ -837,6 +963,16 @@
 
   els.pdfBtn.addEventListener('click', function () { window.print(); });
 
+  els.copyNumeroBtn.addEventListener('click', function () { copiarTexto(els.docNumero.textContent, els.copyNumeroBtn); });
+  els.copyTotalBtn.addEventListener('click', function () { copiarTexto(els.docTotal.textContent, els.copyTotalBtn); });
+  els.copyMensajeBtn.addEventListener('click', function () {
+    var q = state.currentQuote;
+    if (!q) return;
+    var plantilla = settings.whatsapp && settings.whatsapp.plantilla;
+    var texto = plantilla ? WhatsApp.renderPlantilla(plantilla, q) : WhatsApp.mensaje(q, settings.empresa);
+    copiarTexto(texto, els.copyMensajeBtn);
+  });
+
   els.marcarAceptadoBtn.addEventListener('click', function () {
     var q = Quotes.cambiarEstado(state.currentQuote.id, 'aceptado');
     state.currentQuote = q;
@@ -866,8 +1002,17 @@
 
   // --- Clientes: listado, alta, edición, baja ---
 
+  function ordenarClientes(clientes, orden) {
+    clientes = clientes.slice();
+    if (orden === 'nombre_desc') clientes.sort(function (a, b) { return b.nombre.localeCompare(a.nombre, 'es'); });
+    else if (orden === 'recientes') clientes.sort(function (a, b) { return new Date(b.fechaCreacion) - new Date(a.fechaCreacion); });
+    else if (orden === 'antiguos') clientes.sort(function (a, b) { return new Date(a.fechaCreacion) - new Date(b.fechaCreacion); });
+    // 'nombre_asc' ya es el orden por defecto de Clients.listar()
+    return clientes;
+  }
+
   function renderClientesList() {
-    var clientes = Clients.listar({ query: els.clientesBuscar.value });
+    var clientes = ordenarClientes(Clients.listar({ query: els.clientesBuscar.value }), state.clientesOrden);
     els.clientesList.innerHTML = '';
     els.clientesEmpty.hidden = clientes.length > 0;
 
@@ -903,8 +1048,27 @@
       top.appendChild(info);
       top.appendChild(badge);
 
+      if (c.telefono) {
+        var telBtn = document.createElement('button');
+        telBtn.type = 'button';
+        telBtn.className = 'copy-btn';
+        telBtn.textContent = '⧉ ' + c.telefono;
+        telBtn.addEventListener('click', function () { copiarTexto(c.telefono, telBtn); });
+        metaEl.appendChild(document.createElement('br'));
+        metaEl.appendChild(telBtn);
+      }
+
       var actions = document.createElement('div');
       actions.className = 'client-actions';
+
+      var fichaBtn = document.createElement('button');
+      fichaBtn.type = 'button';
+      fichaBtn.className = 'icon-btn';
+      fichaBtn.textContent = state.clienteFichaAbiertaId === c.id ? 'Ocultar' : 'Ver ficha';
+      fichaBtn.addEventListener('click', function () {
+        state.clienteFichaAbiertaId = state.clienteFichaAbiertaId === c.id ? null : c.id;
+        renderClientesList();
+      });
 
       var cotizarBtn = document.createElement('button');
       cotizarBtn.type = 'button';
@@ -931,15 +1095,60 @@
       });
 
       actions.appendChild(cotizarBtn);
+      actions.appendChild(fichaBtn);
       actions.appendChild(editBtn);
       actions.appendChild(delBtn);
 
       card.appendChild(top);
       card.appendChild(actions);
+      if (state.clienteFichaAbiertaId === c.id) card.appendChild(construirFichaCliente(c));
       els.clientesList.appendChild(card);
     });
   }
+
+  // --- Ficha de cliente (mejora 15): resumen rápido, sin backend ni datos inventados ---
+  function construirFichaCliente(c) {
+    var presupuestos = Quotes.listar({ clienteId: c.id });
+    var servicios = Services.listar({}).filter(function (s) { return s.clienteId === c.id; });
+
+    var wrap = document.createElement('div');
+    wrap.className = 'client-ficha';
+
+    if (c.email || c.notas) {
+      var infoRow = document.createElement('div');
+      if (c.email) infoRow.appendChild(fichaFila('Email', c.email));
+      if (c.notas) infoRow.appendChild(fichaFila('Notas', c.notas));
+      wrap.appendChild(infoRow);
+    }
+
+    var grid = document.createElement('div');
+    grid.className = 'client-ficha-grid';
+    grid.appendChild(fichaStat('Presupuestos', presupuestos.length));
+    grid.appendChild(fichaStat('Servicios', servicios.length));
+    wrap.appendChild(grid);
+
+    if (presupuestos.length) wrap.appendChild(fichaFila('Último presupuesto', presupuestos[0].numero + ' · ' + fmtFecha(presupuestos[0].fecha)));
+    if (servicios.length) wrap.appendChild(fichaFila('Último servicio', servicios[0].fecha + (servicios[0].hora ? ' ' + servicios[0].hora : '')));
+
+    return wrap;
+  }
+  function fichaStat(label, value) {
+    var el = document.createElement('div');
+    el.className = 'client-ficha-stat';
+    el.innerHTML = '<div class="label-sm">' + escapeHtml(label) + '</div><div class="stat-value">' + value + '</div>';
+    return el;
+  }
+  function fichaFila(label, value) {
+    var el = document.createElement('div');
+    el.className = 'client-ficha-row';
+    el.innerHTML = '<span>' + escapeHtml(label) + '</span><span>' + escapeHtml(value) + '</span>';
+    return el;
+  }
   els.clientesBuscar.addEventListener('input', debounce(renderClientesList, 200));
+  els.clientesOrden.addEventListener('change', function () {
+    state.clientesOrden = els.clientesOrden.value;
+    renderClientesList();
+  });
 
   function setTipoForm(v) {
     state.clienteTipoForm = v;
@@ -978,6 +1187,7 @@
     showScreen('clientesForm');
   }
   els.nuevoClienteBtn.addEventListener('click', function () { openClienteForm(null); });
+  els.clientesEmptyBtn.addEventListener('click', function () { openClienteForm(null); });
   els.cancelarClienteBtn.addEventListener('click', function () { showScreen('clientesList'); });
 
   els.guardarClienteBtn.addEventListener('click', function () {
@@ -993,12 +1203,26 @@
     populateClienteSelect();
     renderClientesList();
     showScreen('clientesList');
+    showToast('✓ Guardado correctamente');
   });
 
   // --- Presupuestos (historial) ---
 
+  function ordenarPresupuestos(quotes, orden) {
+    quotes = quotes.slice();
+    if (orden === 'antiguos') quotes.sort(function (a, b) { return new Date(a.fecha) - new Date(b.fecha); });
+    else if (orden === 'mayor_importe') quotes.sort(function (a, b) { return b.total - a.total; });
+    else if (orden === 'menor_importe') quotes.sort(function (a, b) { return a.total - b.total; });
+    else if (orden === 'estado') quotes.sort(function (a, b) { return a.estado.localeCompare(b.estado); });
+    // 'recientes' ya es el orden por defecto de Quotes.listar()
+    return quotes;
+  }
+
   function renderPresupuestosList() {
-    var quotes = Quotes.listar({ query: els.presupuestosBuscar.value, estado: state.presupuestosFiltroEstado });
+    var quotes = ordenarPresupuestos(
+      Quotes.listar({ query: els.presupuestosBuscar.value, estado: state.presupuestosFiltroEstado }),
+      state.presupuestosOrden
+    );
     els.presupuestosList.innerHTML = '';
     els.presupuestosEmpty.hidden = quotes.length > 0;
 
@@ -1007,9 +1231,9 @@
       card.className = 'quote-card';
       card.innerHTML =
         '<div class="record-top">' +
-          '<div><div class="record-title">' + escapeHtml(q.numero) + '</div>' +
+          '<div><div class="record-title">' + escapeHtml(q.numero) + ' <button type="button" class="copy-btn" data-action="copiar-numero" aria-label="Copiar número">⧉</button></div>' +
           '<div class="record-meta">' + escapeHtml(q.cliente) + ' · ' + escapeHtml(q.origen) + ' → ' + escapeHtml(q.destino) + '</div></div>' +
-          '<div style="text-align:right;"><div class="record-total">$ ' + fmtMoney(q.total) + '</div>' +
+          '<div style="text-align:right;"><div class="record-total">$ ' + fmtMoney(q.total) + ' <button type="button" class="copy-btn" data-action="copiar-total" aria-label="Copiar total">⧉</button></div>' +
           '<span class="badge-estado ' + q.estado + '" style="margin-top:6px;display:inline-block;">' + (ESTADO_QUOTE_LABELS[q.estado] || q.estado) + '</span></div>' +
         '</div>' +
         '<div class="record-actions">' +
@@ -1021,13 +1245,24 @@
 
       card.querySelector('[data-action="ver"]').addEventListener('click', function () { verPresupuesto(q.id); });
       card.querySelector('[data-action="editar"]').addEventListener('click', function () { editarPresupuesto(q.id); });
-      card.querySelector('[data-action="duplicar"]').addEventListener('click', function () { Quotes.duplicar(q.id); renderPresupuestosList(); });
+      card.querySelector('[data-action="duplicar"]').addEventListener('click', function () {
+        Quotes.duplicar(q.id);
+        renderPresupuestosList();
+        showToast('✓ Presupuesto duplicado');
+      });
+      card.querySelector('[data-action="copiar-numero"]').addEventListener('click', function (e) { copiarTexto(q.numero, e.currentTarget); });
+      card.querySelector('[data-action="copiar-total"]').addEventListener('click', function (e) { copiarTexto(String(q.total), e.currentTarget); });
       attachConfirmDelete(card.querySelector('[data-action="eliminar"]'), function () { Quotes.eliminar(q.id); renderPresupuestosList(); });
 
       els.presupuestosList.appendChild(card);
     });
   }
   els.presupuestosBuscar.addEventListener('input', debounce(renderPresupuestosList, 200));
+  els.presupuestosEmptyBtn.addEventListener('click', function () { resetForm(); showScreen('form'); });
+  els.presupuestosOrden.addEventListener('change', function () {
+    state.presupuestosOrden = els.presupuestosOrden.value;
+    renderPresupuestosList();
+  });
   els.presupuestosFiltros.addEventListener('click', function (e) {
     var btn = e.target.closest('.nav-pill');
     if (!btn) return;
@@ -1038,8 +1273,27 @@
 
   // --- Servicios ---
 
+  function ordenarServicios(services, orden) {
+    services = services.slice();
+    if (orden === 'antiguos') {
+      services.sort(function (a, b) { return (a.fecha + ' ' + (a.hora || '')).localeCompare(b.fecha + ' ' + (b.hora || '')); });
+    } else if (orden === 'proximos') {
+      var hoy = new Date().toISOString().slice(0, 10);
+      services.sort(function (a, b) {
+        var af = a.fecha >= hoy, bf = b.fecha >= hoy;
+        if (af !== bf) return af ? -1 : 1;
+        return (a.fecha + ' ' + (a.hora || '')).localeCompare(b.fecha + ' ' + (b.hora || ''));
+      });
+    }
+    // 'recientes' ya es el orden por defecto de Services.listar()
+    return services;
+  }
+
   function renderServiciosList() {
-    var services = Services.listar({ estado: state.serviciosFiltroEstado });
+    var services = ordenarServicios(
+      Services.listar({ estado: state.serviciosFiltroEstado, query: els.serviciosBuscar.value }),
+      state.serviciosOrden
+    );
     els.serviciosList.innerHTML = '';
     els.serviciosEmpty.hidden = services.length > 0;
 
@@ -1049,11 +1303,13 @@
       card.innerHTML =
         '<div class="record-top">' +
           '<div><div class="record-title">' + escapeHtml(s.cliente) + '</div>' +
-          '<div class="record-meta">' + escapeHtml(s.fecha) + ' ' + escapeHtml(s.hora || '') + ' · ' + (s.vehiculo === 'moto' ? 'Moto' : 'Auto') + (s.conductor ? ' · ' + escapeHtml(s.conductor) : '') + '</div></div>' +
+          '<div class="record-meta">' + escapeHtml(s.fecha) + ' ' + escapeHtml(s.hora || '') + ' · ' + (s.vehiculo === 'moto' ? 'Moto' : 'Auto') + (s.conductor ? ' · ' + escapeHtml(s.conductor) : '') + '</div>' +
+          '<div class="record-meta">' + escapeHtml(s.origen) + ' → ' + escapeHtml(s.destino) + '</div></div>' +
           '<div class="record-total">$ ' + fmtMoney(s.total) + '</div>' +
         '</div>' +
         '<div class="record-actions">' +
           '<select class="estado-select" style="border:1.5px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12.5px;background:var(--surface);color:var(--ink);"></select>' +
+          '<button type="button" class="icon-btn" data-action="repetir">Repetir</button>' +
           '<button type="button" class="icon-btn" data-action="editar">Editar</button>' +
           '<button type="button" class="icon-btn danger" data-action="eliminar">Eliminar</button>' +
         '</div>';
@@ -1068,11 +1324,22 @@
       select.addEventListener('change', function () { Services.cambiarEstado(s.id, select.value); renderServiciosList(); });
 
       card.querySelector('[data-action="editar"]').addEventListener('click', function () { editarServicio(s.id); });
+      card.querySelector('[data-action="repetir"]').addEventListener('click', function () {
+        var nuevo = Services.repetir(s.id);
+        renderServiciosList();
+        showToast('✓ Servicio repetido');
+        if (nuevo) editarServicio(nuevo.id);
+      });
       attachConfirmDelete(card.querySelector('[data-action="eliminar"]'), function () { Services.eliminar(s.id); renderServiciosList(); });
 
       els.serviciosList.appendChild(card);
     });
   }
+  els.serviciosBuscar.addEventListener('input', debounce(renderServiciosList, 200));
+  els.serviciosOrden.addEventListener('change', function () {
+    state.serviciosOrden = els.serviciosOrden.value;
+    renderServiciosList();
+  });
   els.serviciosFiltros.addEventListener('click', function (e) {
     var btn = e.target.closest('.nav-pill');
     if (!btn) return;
@@ -1099,6 +1366,7 @@
     });
     renderServiciosList();
     showScreen('serviciosList');
+    showToast('✓ Guardado correctamente');
   });
   els.cancelarServicioBtn.addEventListener('click', function () { showScreen('serviciosList'); });
 
@@ -1175,6 +1443,97 @@
     }).join('');
   }
 
+  // --- Buscador global (mejora 16): sobre datos ya cargados, sin llamadas externas ---
+
+  function abrirBuscadorGlobal() {
+    els.globalSearchOverlay.hidden = false;
+    els.globalSearchInput.value = '';
+    renderResultadosBusquedaGlobal('');
+    setTimeout(function () { els.globalSearchInput.focus(); }, 0);
+  }
+  function cerrarBuscadorGlobal() { els.globalSearchOverlay.hidden = true; }
+
+  function gsResultBtn(titulo, meta, onClick) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'gs-result';
+    btn.innerHTML = '<span class="gs-result-title">' + escapeHtml(titulo) + '</span><span class="gs-result-meta">' + escapeHtml(meta) + '</span>';
+    btn.addEventListener('click', function () { cerrarBuscadorGlobal(); onClick(); });
+    return btn;
+  }
+
+  function renderResultadosBusquedaGlobal(query) {
+    query = query.trim().toLowerCase();
+    els.globalSearchResults.innerHTML = '';
+    if (!query) { els.globalSearchResults.innerHTML = '<div class="gs-empty">Escribí para buscar en clientes, presupuestos y servicios.</div>'; return; }
+
+    var clientes = Clients.listar({ query: query }).slice(0, 8);
+    var quotes = Quotes.listar({ query: query }).slice(0, 8);
+    var servicios = Services.listar({ query: query }).slice(0, 8);
+
+    if (!clientes.length && !quotes.length && !servicios.length) {
+      els.globalSearchResults.innerHTML = '<div class="gs-empty">Sin resultados para "' + escapeHtml(query) + '".</div>';
+      return;
+    }
+
+    if (clientes.length) {
+      var t1 = document.createElement('div'); t1.className = 'gs-group-title'; t1.textContent = 'Clientes';
+      els.globalSearchResults.appendChild(t1);
+      clientes.forEach(function (c) {
+        els.globalSearchResults.appendChild(gsResultBtn(c.nombre, c.empresa || c.telefono || 'Cliente', function () {
+          renderClientesList();
+          showScreen('clientesList');
+        }));
+      });
+    }
+    if (quotes.length) {
+      var t2 = document.createElement('div'); t2.className = 'gs-group-title'; t2.textContent = 'Presupuestos';
+      els.globalSearchResults.appendChild(t2);
+      quotes.forEach(function (q) {
+        els.globalSearchResults.appendChild(gsResultBtn(q.numero + ' · ' + q.cliente, q.origen + ' → ' + q.destino, function () { verPresupuesto(q.id); }));
+      });
+    }
+    if (servicios.length) {
+      var t3 = document.createElement('div'); t3.className = 'gs-group-title'; t3.textContent = 'Servicios';
+      els.globalSearchResults.appendChild(t3);
+      servicios.forEach(function (s) {
+        els.globalSearchResults.appendChild(gsResultBtn(s.cliente, s.fecha + ' · ' + s.origen + ' → ' + s.destino, function () {
+          renderServiciosList();
+          showScreen('serviciosList');
+        }));
+      });
+    }
+  }
+
+  els.globalSearchBtn.addEventListener('click', abrirBuscadorGlobal);
+  els.globalSearchClose.addEventListener('click', cerrarBuscadorGlobal);
+  els.globalSearchOverlay.addEventListener('click', function (e) { if (e.target === els.globalSearchOverlay) cerrarBuscadorGlobal(); });
+  els.globalSearchInput.addEventListener('input', debounce(function () { renderResultadosBusquedaGlobal(els.globalSearchInput.value); }, 150));
+
+  // --- Atajos de teclado (mejora 10) ---
+  document.addEventListener('keydown', function (e) {
+    var enInput = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '');
+
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (els.globalSearchOverlay.hidden) abrirBuscadorGlobal(); else cerrarBuscadorGlobal();
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      if (!els.globalSearchOverlay.hidden) { cerrarBuscadorGlobal(); return; }
+      if (!els.imagenOverlay.hidden) { cerrarImagenOverlay(); return; }
+      return;
+    }
+
+    // Enter confirma en pantallas con una sola acción principal clara, sin
+    // pisar el comportamiento normal de Enter dentro de inputs/textareas
+    // (los campos del cotizador ya manejan Enter para calcular).
+    if (e.key === 'Enter' && !enInput) {
+      if (state.screen === 'result') { els.generarBtn.click(); return; }
+    }
+  });
+
   // --- Configuración ---
 
   function showCfgError(msg) { els.cfgError.textContent = msg; els.cfgError.hidden = false; }
@@ -1195,6 +1554,8 @@
     els.cfgAutoMinima.value = settings.tarifas.auto.tarifaMinima;
     els.cfgAutoKmInc.value = settings.tarifas.auto.kmIncluidos;
     els.cfgAutoKmAdic.value = settings.tarifas.auto.precioKmAdicional;
+
+    els.cfgWhatsappPlantilla.value = settings.whatsapp.plantilla;
 
     els.cfgPrefijo.value = settings.presupuestos.prefijo;
     els.cfgVigencia.value = settings.presupuestos.vigenciaDias;
@@ -1256,10 +1617,13 @@
       condiciones: els.cfgCondiciones.value.trim()
     };
 
+    settings.whatsapp = { plantilla: els.cfgWhatsappPlantilla.value };
+
     Storage.saveSettings(settings);
     els.headerTitle.textContent = settings.empresa.nombre;
     renderRecargosCheckboxes();
     els.cfgSaved.hidden = false;
+    showToast('✓ Guardado correctamente');
   });
 
   // --- Arranque ---

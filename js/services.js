@@ -43,6 +43,12 @@
       return fb.localeCompare(fa);
     });
     if (opts.estado) services = services.filter(function (s) { return s.estado === opts.estado; });
+    var query = (opts.query || '').trim().toLowerCase();
+    if (query) {
+      services = services.filter(function (s) {
+        return (s.cliente + ' ' + s.origen + ' ' + s.destino).toLowerCase().indexOf(query) !== -1;
+      });
+    }
     return services;
   }
 
@@ -69,6 +75,32 @@
     global.Storage.deleteService(id);
   }
 
+  // Crea un servicio nuevo a partir de uno existente (viajes recurrentes).
+  // No copia id, historial ni estado: arranca como un servicio nuevo.
+  function repetir(id) {
+    var original = obtener(id);
+    if (!original) return null;
+    var ahora = new Date();
+    var copia = {
+      quoteId: original.quoteId,
+      numero: original.numero,
+      fecha: ahora.toISOString().slice(0, 10),
+      hora: ahora.toTimeString().slice(0, 5),
+      cliente: original.cliente,
+      clienteId: original.clienteId || null,
+      vehiculo: original.vehiculo,
+      conductor: original.conductor || '',
+      origen: original.origen,
+      paradas: original.paradas || [],
+      destino: original.destino,
+      distanciaKm: original.distanciaKm,
+      total: original.total,
+      estado: 'pendiente',
+      historial: [{ estado: 'pendiente', fecha: ahora.toISOString() }]
+    };
+    return global.Storage.saveService(copia);
+  }
+
   global.Services = {
     ESTADOS: ESTADOS,
     crearDesdeQuote: crearDesdeQuote,
@@ -76,6 +108,7 @@
     obtener: obtener,
     actualizar: actualizar,
     cambiarEstado: cambiarEstado,
+    repetir: repetir,
     eliminar: eliminar
   };
 })(window);
